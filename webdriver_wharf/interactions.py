@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import time
+import ast
 from contextlib import contextmanager
 from itertools import count
 from urllib import urlopen
@@ -32,10 +33,45 @@ _vnc_port_offset = 5900 - _wd_port_start
 _http_port_offset = 6900 - _wd_port_start
 
 # docker client is localhost only for now
-client = AutoVersionClient(timeout=120)
+client_urls = []
+client = None
 logger = logging.getLogger(__name__)
 container_pool_size = 4
 last_pulled_image_id = None
+
+
+def connect_to_clients():
+    """Parse WEBDRIVER_WHARF_CLIENTS and make a list of clients"""
+    global client_urls
+
+    clients_list = os.environ.get('WEBDRIVER_WHARF_CLIENTS', "['unix://var/run/docker.sock']")
+    client_urls = ast.literal_eval(clients_list)
+    logger.info('Found clients: {}'.format(client_urls))
+
+    pick_least_busy_client()
+
+
+def pick_least_busy_client():
+    """Return a client with least containers running"""
+    global client
+
+    temp_clients = []
+    # Start with containers with a minimal numbers of running containers
+    for url in client_urls:
+        try:
+            logger.info("Trying to connect to {}".format(url))
+            temp_client = AutoVersionClient(base_url=url, timeout=120)
+            temp_clients.append(temp_client)
+        except Exception as exc:
+            logger.error('%s while connecting to host' % type(exc).__name__)
+            logger.exception(exc)
+
+    if len(temp_clients) < 1:
+        raise Exception("No valid clients found")
+    client = min(temp_clients, key=lambda c: len(c.containers()))
+
+    logger.info('Picked client {} with {} containers running'.format(
+                client.base_url, len(client.containers())))
 
 
 @contextmanager
@@ -98,6 +134,7 @@ def create_container(image_name):
         session.expire_on_commit = False
 
     logger.info('Container %s created (id: %s)', name, container_id[:12])
+    pick_least_busy_client()
     return container
 
 
@@ -182,6 +219,7 @@ def destroy(container):
     with apierror_squasher():
         client.remove_container(container.id, v=True)
         logger.info('Container %s destroyed', container.name)
+        pick_least_busy_client()
 
 
 def destroy_all():

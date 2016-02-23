@@ -347,6 +347,7 @@ balance_containers.trigger = lambda: scheduler.modify_job(
 def _wharf_init():
     version = require("webdriver-wharf")[0].version
     logger.info('version %s', version)
+    interactions.connect_to_clients()
     # Before doing anything else, grab the image or explode
     logger.info('Pulling image %s -- this could take a while', image_name)
     interactions.pull(image_name)

@@ -50,6 +50,15 @@ Number of containers to keep in the active pool, ready for checkout.
 
 Defaults to 4
 
+WEBDRIVER_WHARF_CLIENTS
+-------------------------
+
+A list of remote docker hosts to use, e.g. "['tcp://10.0.0.1:4242', 'tcp://10.0.0.2:4242']"
+Before each operation a host with a minimal number of running containers is picked and
+used as a client
+
+Defaults to local docker (unix://var/run/docker.sock)
+
 WEBDRIVER_WHARF_MAX_CHECKOUT_TIME
 ---------------------------------
 
